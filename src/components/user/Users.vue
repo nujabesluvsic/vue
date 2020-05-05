@@ -6,6 +6,7 @@
             <el-breadcrumb-item>用户管理</el-breadcrumb-item>
             <el-breadcrumb-item>用户列表</el-breadcrumb-item>
         </el-breadcrumb>
+
         <el-card class="box-card">
             <el-row :gutter="20">
                 <el-col :span="8">
@@ -18,7 +19,7 @@
                 </el-col>
             </el-row>
 
-            <el-table :data="userlist" border stripe>
+            <el-table :data="userList" border stripe>
                 <el-table-column label="#" type="index"></el-table-column>
                 <el-table-column label="姓名" prop="username"></el-table-column>
                 <el-table-column label="邮箱" prop="email"></el-table-column>
@@ -31,22 +32,22 @@
                 </el-table-column>
                 <el-table-column label="操作" width="180px">
                     <template v-slot="scope">
-                        <el-button type="primary" icon="el-icon-edit" size="mini" @click="showEditDialog(scope.row.id)"></el-button>
-                        <el-button type="danger" icon="el-icon-delete" size="mini" @click="removeUserById(scope.row.id)"></el-button>
+                        <el-button type="primary" icon="el-icon-edit" size="mini"
+                                   @click="showEditDialog(scope.row.id)"></el-button>
+                        <el-button type="danger" icon="el-icon-delete" size="mini"
+                                   @click="removeUserById(scope.row.id)"></el-button>
                         <el-tooltip effect="dark" content="分配角色" placement="top" :enterable="false">
-                            <el-button type="warning" icon="el-icon-setting" size="mini"></el-button>
+                            <el-button type="warning" icon="el-icon-setting" size="mini"
+                                       @click="showSetRoleDialog(scope.row)"></el-button>
                         </el-tooltip>
                     </template>
                 </el-table-column>
             </el-table>
 
             <el-pagination
-                    @size-change="handleSizeChange"
                     @current-change="handleCurrentChange"
-                    :page-sizes="[3,5,8]"
                     :current-page="queryInfo.pagenum"
-                    :page-size="queryInfo.pagesize"
-                    layout="prev, pager, next, sizes, total, jumper"
+                    layout="prev, pager, next, total, jumper"
                     :total="total"
                     background
                     :hide-on-single-page="true"
@@ -102,6 +103,22 @@
                 </span>
             </el-dialog>
 
+            <el-dialog
+                    title="分配角色"
+                    :visible.sync="setRoleDialogVisible"
+                    width="50%" @close="setRoleDialogClosed">
+                <p>当前的用户:{{userInfo.username}}</p>
+                <p>当前的角色:{{userInfo.role_name}}</p>
+                <el-select v-model="selectedRoleId" placeholder="请选择">
+                    <el-option v-for="item in roleList" :key="item.id"
+                               :label="item.roleName" :value="item.id">
+                    </el-option>
+                </el-select>
+                <span slot="footer" class="dialog-footer">
+                    <el-button @click="setRoleDialogVisible = false">取 消</el-button>
+                    <el-button type="primary" @click="setRole">确 定</el-button>
+                </span>
+            </el-dialog>
         </el-card>
     </div>
 </template>
@@ -116,7 +133,7 @@
                 if (regEmail.test(value)) return callback();
                 callback(new Error('请输入合法的邮箱'))
             }
-            var checkMobile = (rule, value, callback) => {
+            const checkMobile = (rule, value, callback) => {
                 const regMobile = /^(0|86|17951)?(13[0-9]|15[012356789]|17[678]|18[0-9]|14[57])[0-9]{8}$/
                 if (regMobile.test(value)) return callback();
                 callback(new Error('请输入合法的手机号'))
@@ -126,13 +143,21 @@
                 queryInfo: {
                     query: '',
                     pagenum: 1,
-                    pagesize: 2
+                    pagesize: 10
                 },
-                userlist: [],
+                userList: [],
                 total: 0,
 
                 addDialogVisible: false,
                 editDialogVisible: false,
+                setRoleDialogVisible:false,
+
+                userInfo:{
+                    username:'',
+                    role_name:''
+                },
+                roleList:[],
+                selectedRoleId:'',
 
                 //添加用户的表单数据
                 addForm: {
@@ -178,13 +203,8 @@
                 const {data: res} = await this.$http.get('users', {params: this.queryInfo});
                 if (res.meta.status !== 200)
                     return this.$message.error("获取用户列表失败")
-                this.userlist = res.data.users
+                this.userList = res.data.users
                 this.total = res.data.total
-                console.log(res)
-            },
-            handleSizeChange(newSize) {
-                this.queryInfo.pagesize = newSize
-                this.getUserList()
             },
             handleCurrentChange(newPage) {
                 this.queryInfo.pagenum = newPage
@@ -220,6 +240,13 @@
                 this.editForm=res.data
                 this.editDialogVisible = true
             },
+            async showSetRoleDialog(userInfo){
+                this.userInfo=userInfo
+                const {data:res} = await this.$http.get('roles');
+                if (res.meta.status!==200) return this.$message.error('获取角色列表失败')
+                this.roleList=res.data
+                this.setRoleDialogVisible=true
+            },
             editDialogClosed(){
                 this.$refs.editFormRef.resetFields()
             },
@@ -240,7 +267,7 @@
                 })
             },
             async removeUserById(id) {
-                const confirmResult = await this.$confirm('此操作将永久删除该文件, 是否继续?', '提示', {
+                const confirmResult = await this.$confirm('此操作将永久删除该用户, 是否继续?', '提示', {
                     confirmButtonText: '确定',
                     cancelButtonText: '取消',
                     type: 'warning'
@@ -250,11 +277,23 @@
                 if (res.meta.status!==200) return this.$message.error('删除用户失败')
                 this.$message.success('删除用户成功')
                 await this.getUserList()
+            },
+            async setRole(){
+                if (!this.selectedRoleId) return this.$message.error('请选择要分配的角色')
+                const {data:res} = await this.$http.put(`users/${this.userInfo.id}/role`,
+                    {rid: this.selectedRoleId});
+                if (res.meta.status!==200) return this.$message.error('更新角色失败')
+                this.$message.success('更新角色成功')
+                await this.getUserList()
+                this.setRoleDialogVisible=false
+            },
+            setRoleDialogClosed(){
+                this.selectedRoleId=''
+                this.userInfo={}
             }
         }
     }
 </script>
 
 <style lang="less" scoped>
-
 </style>
