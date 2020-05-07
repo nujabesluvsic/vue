@@ -145,7 +145,7 @@
                 queryInfo: {
                     query: '',
                     pagenum: 1,
-                    pagesize: 3
+                    pagesize: 5
                 },
                 userList: [],
                 total: 0,
