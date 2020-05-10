@@ -229,9 +229,7 @@
                 })
             },
             addDialogClosed(){
-                this.$nextTick(() =>{
-                    this.$refs.addFormRef.resetFields()
-                })
+                this.$refs.addFormRef.resetFields()
             },
             editDialogClosed(){
                 this.$refs.editFormRef.resetFields()
